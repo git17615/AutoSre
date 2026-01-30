@@ -20,15 +20,10 @@ class Incident(BaseModel):
     severity: float
     description: str
     metrics: Dict
+
     status: str
+    ai_analysis: Optional[Dict] = None
+    action_taken: Optional[str] = None
+
     detected_at: datetime
     resolved_at: Optional[datetime] = None
-
-class Action(BaseModel):
-    id: str
-    type: str
-    service_id: str
-    service_name: str
-    confidence: float
-    result: Dict
-    timestamp: datetime

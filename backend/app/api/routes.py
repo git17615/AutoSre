@@ -1,68 +1,57 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
+from datetime import datetime
+import uuid
 
-from app.main import get_agent
+from app.core.state import get_agent
 from app.models.schemas import Service, Incident
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1")
+
 
 @router.get("/services", response_model=List[Service])
-async def services():
-    agent = get_agent()
-    return list(agent.services.values()) if agent else []
-
-@router.get("/incidents", response_model=List[Incident])
-async def incidents(active: bool = True):
+async def get_services():
     agent = get_agent()
     if not agent:
         return []
-    return [
-        i for i in agent.incidents.values()
-        if not active or i.status != "resolved"
-    ]
+    return list(agent.services.values())
 
-@router.post("/services/{service_id}/restart")
-async def restart(service_id: str):
+
+@router.get("/incidents", response_model=List[Incident])
+async def get_incidents(active: bool = True):
     agent = get_agent()
-    if not agent or service_id not in agent.services:
-        raise HTTPException(404, "Service not found")
+    if not agent:
+        return []
 
-    result = await agent.action_executor.execute(
-        "restart_service",
-        agent.services[service_id]
-    )
-    return {"success": True, "result": result}
+    if active:
+        return [
+            i for i in agent.incidents.values()
+            if i.status != "resolved"
+        ]
 
-@router.get("/ai/status")
-async def ai_status():
-    from app.agent.local_ai import local_ai
-    return {
-        "status": "active" if local_ai.model else "inactive",
-        "patterns_loaded": len(local_ai.incident_patterns)
-    }
+    return list(agent.incidents.values())
+
 
 @router.post("/simulate/incident")
 async def simulate_incident():
     agent = get_agent()
     if not agent or not agent.services:
-        raise HTTPException(404, "No services")
-
-    import uuid
-    from datetime import datetime
-    from app.models.schemas import Incident
+        raise HTTPException(status_code=404, detail="No services found")
 
     svc = list(agent.services.values())[0]
-    inc = Incident(
+
+    incident = Incident(
         id=str(uuid.uuid4()),
         service_id=svc.id,
         service_name=svc.name,
         type="simulated",
-        severity=0.8,
-        description="Simulated failure",
-        metrics={"cpu": 95, "memory": 80},
+        severity=0.9,
+        description="Simulated high CPU incident",
+        metrics={"cpu": 95, "memory": 82},
         status="detected",
         detected_at=datetime.now()
     )
 
-    agent.incidents[inc.id] = inc
-    return {"success": True, "incident_id": inc.id}
+    agent.incidents[incident.id] = incident
+
+    return {"success": True, "incident_id": incident.id}
